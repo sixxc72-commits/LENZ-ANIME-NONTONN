@@ -10,8 +10,24 @@ async function PageEpisode({params}){
 
     // Server list
     const servers = LenzAPI.extractList({data:e},"server_list","stream_list","mirror","streams","servers");
-    // Default URL
-    const defaultUrl = e.stream_url || e.url || (servers[0] && (servers[0].url||servers[0].src||servers[0].iframe||servers[0].embed)) || "";
+    
+    // === INTEGRASI FITUR: DEFAULTSTREAMING CRAWLER ===
+    let defaultIdx = 0;
+    if (servers.length > 0) {
+      // Mencari indeks server yang mengandung identitas 'default' atau 'desustream'
+      const foundIdx = servers.findIndex(s => {
+        const name = String(s.name || s.title || "").toLowerCase();
+        const urlStr = String(s.url || s.src || s.iframe || s.embed || "").toLowerCase();
+        return name.includes("default") || name.includes("desustream") || urlStr.includes("desustream");
+      });
+      // Jika ditemukan, kunci indeks tersebut. Jika tidak, tetap gunakan indeks 0 (Server Pertama)
+      if (foundIdx !== -1) {
+        defaultIdx = foundIdx;
+      }
+    }
+
+    // Menentukan URL Default berdasarkan indeks server prioritas yang terpilih
+    const defaultUrl = e.stream_url || e.url || (servers[defaultIdx] && (servers[defaultIdx].url||servers[defaultIdx].src||servers[defaultIdx].iframe||servers[defaultIdx].embed)) || "";
 
     const prev = e.previous_episode?.slug || e.prev?.slug || e.previous_slug || "";
     const next = e.next_episode?.slug || e.next?.slug || e.next_slug || "";
@@ -39,7 +55,7 @@ async function PageEpisode({params}){
         ${servers.length ? `
         <div class="section-head"><h2>Pilih Server</h2></div>
         <div class="server-list">
-          ${servers.map((s,i)=>`<button class="chip ${i===0?'active':''}" data-url="${LenzUI.escapeHTML(s.url||s.src||s.iframe||s.embed||'')}">${LenzUI.escapeHTML(s.name||s.title||('Server '+(i+1)))}</button>`).join("")}
+          ${servers.map((s,i)=>`<button class="chip ${i===defaultIdx?'active':''}" data-url="${LenzUI.escapeHTML(s.url||s.src||s.iframe||s.embed||'')}">${LenzUI.escapeHTML(s.name||s.title||('Server '+(i+1)))}</button>`).join("")}
         </div>` : ""}
 
         ${animeSlug ? `<div style="padding:14px 16px"><a class="btn btn-ghost" href="#/anime/${encodeURIComponent(animeSlug)}">📄 Detail Anime</a></div>` : ""}
