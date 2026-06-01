@@ -11,34 +11,34 @@ async function PageEpisode({params}){
     // 1. Ambil list server mentah dari API
     const rawServers = LenzAPI.extractList({data:e},"server_list","stream_list","mirror","streams","servers");
     
-    // 2. FILTER AMAN: Buang link yang mengarah ke website utama Otakudesu/Localhost (bukan video player)
+    // 2. FILTER PINTAR: Hanya buang jika URL berupa halaman web artikel biasa (/episode/ atau /anime/)
     const servers = rawServers.filter(s => {
       const urlStr = String(s.url || s.src || s.iframe || s.embed || "").toLowerCase();
-      return urlStr && !urlStr.includes("otakudesu") && !urlStr.includes("localhost");
+      return urlStr && !urlStr.includes("/episode/") && !urlStr.includes("/anime/") && !urlStr.includes("localhost");
     });
 
     // 3. JALANKAN ENGINE DEFAULTSTREAMING CRAWLER
     let defaultIdx = 0;
     if (servers.length > 0) {
-      // Cari server yang secara spesifik bernama/beralamat 'default' atau 'desustream'
+      // Cari server yang menduduki kriteria 'default' atau 'desustream'
       const foundIdx = servers.findIndex(s => {
         const name = String(s.name || s.title || "").toLowerCase();
         const urlStr = String(s.url || s.src || s.iframe || s.embed || "").toLowerCase();
         return name.includes("default") || name.includes("desustream") || urlStr.includes("desustream");
       });
-      // Jika ketemu, kunci indeks server tersebut sebagai player utama
+      // Jika ditemukan, kunci indeks server tersebut sebagai player utama
       if (foundIdx !== -1) {
         defaultIdx = foundIdx;
       }
     }
 
-    // 4. PENENTUAN URL UTAMA (Prioritaskan hasil saringan list server)
+    // 4. PENENTUAN URL UTAMA PLAYER
     let defaultUrl = (servers[defaultIdx] && (servers[defaultIdx].url||servers[defaultIdx].src||servers[defaultIdx].iframe||servers[defaultIdx].embed)) || "";
     
-    // Fallback terakhir ke stream_url bawaan JIKA dan hanya JIKA bukan web wrapper
+    // Fallback cadangan jika array server kosong, ambil dari stream_url selama bukan web utama
     if (!defaultUrl) {
-      const fallback = e.stream_url || e.url || "";
-      if (!fallback.includes("otakudesu") && !fallback.includes("localhost")) {
+      const fallback = e.stream_url || "";
+      if (fallback && !fallback.includes("/episode/") && !fallback.includes("/anime/")) {
         defaultUrl = fallback;
       }
     }
