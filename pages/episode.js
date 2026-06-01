@@ -8,13 +8,12 @@ async function PageEpisode({params}){
     const title = e.title || e.episode_title || params.slug;
     document.title = `${title} | LENZ ANIME NONTON`;
 
-    // 1. ENGINE DEEP CRAWLER VIDEO (Dibatasi agar tidak serakah)
+    // 1. ENGINE DEEP CRAWLER VIDEO
     function discoverStreams(obj) {
       let list = [];
       function scan(curr, key = "") {
         if (!curr) return;
         
-        // PROTEKSI: Jangan ambil link dari object download, batch, atau list episode lain
         const kLower = key.toLowerCase();
         if (kLower.includes("download") || kLower.includes("episode") || kLower.includes("batch") || kLower.includes("meta")) {
           return;
@@ -72,7 +71,7 @@ async function PageEpisode({params}){
 
     const servers = discoverStreams(e);
 
-    // 2. JALANKAN ENGINE DEFAULTSTREAMING CRAWLER
+    // 2. ENGINE DEFAULTSTREAMING CRAWLER
     let defaultIdx = 0;
     if (servers.length > 0) {
       const foundIdx = servers.findIndex(s => {
@@ -91,8 +90,80 @@ async function PageEpisode({params}){
     const next = e.next_episode?.slug || e.next?.slug || e.next_slug || "";
     const animeSlug = e.anime?.slug || e.anime_slug || "";
     
-    // Ambil list episode lain
-    const episodeList = LenzAPI.extractList({data:e},"episode_list","episodes");
+    // ========================================================
+    // 3. ENGINE FILTRASI LIST EPISODE (ANTI-ZONK)
+    // ========================================================
+    let rawEpisodeList = [];
+    try {
+      rawEpisodeList = LenzAPI.extractList({data:e}, "episode_list", "episodes") || [];
+    } catch(_) {}
+
+    // Jika bawaan kosong, bantu scan ulang mendalam mencari array list episode
+    if (!Array.isArray(rawEpisodeList) || rawEpisodeList.length === 0) {
+      function findEpArray(source) {
+        for (let k in source) {
+          if (Array.isArray(source[k]) && source[k].length > 0 && (k.toLowerCase().includes("episode") || k.toLowerCase().includes("list"))) {
+            return source[k];
+          }
+          if (source[k] && typeof source[k] === "object") {
+            let res = findEpArray(source[k]);
+            if (res) return res;
+          }
+        }
+        return [];
+      }
+      rawEpisodeList = findEpArray(e);
+    }
+
+    // Bersihkan isi list episode secara ketat
+    const validEpisodes = [];
+    if (Array.isArray(rawEpisodeList)) {
+      rawEpisodeList.forEach(ep => {
+        if (!ep) return;
+        
+        let s = "";
+        let n = "";
+        
+        if (typeof ep === "object") {
+          s = ep.slug || ep.endpoint || ep.id || ep.url || "";
+          n = ep.episode || ep.title || ep.number || ep.name || "";
+        } else {
+          s = String(ep);
+          n = String(ep);
+        }
+        
+        if (s.includes("/")) {
+          const parts = s.split("/").filter(Boolean);
+          s = parts[parts.length - 1] || s;
+        }
+        
+        // Gali nomor dari teks slug jika properti namanya kosong
+        if (!n || String(n).trim() === "") {
+          const matchNum = s.match(/(?:episode|ep|ep-|-)(\d+)/i) || s.match(/(\d+)/);
+          n = matchNum ? matchNum[1] : s;
+        }
+        
+        // Rapikan label teks tombol
+        let displayLabel = String(n)
+          .replace(/subtitle/gi, '')
+          .replace(/indonesia/gi, '')
+          .replace(/episode/gi, '')
+          .replace(/sub/gi, '')
+          .replace(/indo/gi, '')
+          .trim();
+          
+        // Proteksi Akhir: Jika label kosong, paksa isi dengan angka dari slug-nya
+        if (!displayLabel || displayLabel === "") {
+          const fallbackNum = s.match(/(\d+)/);
+          displayLabel = fallbackNum ? fallbackNum[1] : "Lihat";
+        }
+        
+        // Validasi: Hanya masukkan jika slug valid dan bukan merupakan object rusak string
+        if (s && s !== "[object Object]" && s.trim() !== "") {
+          validEpisodes.push({ slug: s, label: displayLabel });
+        }
+      });
+    }
 
     app.innerHTML = `
       <section class="section">
@@ -120,33 +191,10 @@ async function PageEpisode({params}){
 
         ${animeSlug ? `<div style="padding:14px 16px"><a class="btn btn-ghost" href="#/anime/${encodeURIComponent(animeSlug)}">📄 Detail Anime</a></div>` : ""}
 
-        ${episodeList.length ? `
+        ${validEpisodes.length ? `
         <div class="section-head"><h2>Episode Lain</h2></div>
         <div class="episode-list">
-          ${episodeList.map(ep=>{
-            if (!ep) return "";
-            
-            // Ambil Slug Keamanan
-            let s = typeof ep === "object" ? (ep.slug || ep.endpoint || ep.id || ep.url || "") : String(ep);
-            if (s.includes("/")) {
-              const parts = s.split("/").filter(Boolean);
-              s = parts[parts.length - 1] || s;
-            }
-
-            // Ambil Teks Judul/Nomor
-            let n = typeof ep === "object" ? (ep.episode || ep.title || ep.number || ep.name || "") : "";
-            
-            // FALLBACK SMART: Jika API mengirim data kosong, bedah angka dari teks slug
-            if (!n || String(n).trim() === "") {
-              const matchNumber = s.match(/episode-(\d+)/i) || s.match(/-(\d+)/);
-              n = matchNumber ? matchNumber[1] : s;
-            }
-
-            // Rapikan teks (Contoh: "Episode 02" cukup ditulis "02")
-            let displayLabel = String(n).replace(/subtitle/gi, '').replace(/indonesia/gi, '').replace(/episode/gi, '').trim();
-
-            return `<a href="#/episode/${encodeURIComponent(s)}">Ep ${LenzUI.escapeHTML(displayLabel)}</a>`;
-          }).join("")}
+          ${validEpisodes.map(ep => `<a href="#/episode/${encodeURIComponent(ep.slug)}">Ep ${LenzUI.escapeHTML(ep.label)}</a>`).join("")}
         </div>` : ""}
       </section>
     `;
