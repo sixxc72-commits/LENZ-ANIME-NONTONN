@@ -1,21 +1,17 @@
-/* ========= Page: Search (Pencarian Anime) ========= */
-async function PageSearch(props) {
-  // Ambil data params dari router bawaanmu (bisa berupa props langsung atau properti di dalamnya)
-  const params = props?.params || props || {};
-  
-  // Deteksi kata kunci dari berbagai kemungkinan rute bawaan (slug atau keyword)
-  const currentQuery = params.slug || params.keyword || params.q || "";
-
+/* ========= Page: Search ========= */
+async function PageSearch({query}){
+  const currentQuery = query?.q || "";
+  document.title = `Cari "${currentQuery}" | LENZ ANIME NONTON`;
   const app = document.getElementById("app");
-  document.title = "Cari Anime | LENZ ANIME NONTON";
-
-  // 1. RENDER TAMPILAN UTAMA (TETAP MOBILE FRIENDLY, ANTI MODE DESKTOP)
+  
+  // 1. RENDER STRUKTUR HALAMAN + KOLOM INPUT KHUSUS MOBILE
   app.innerHTML = `
     <section class="section">
       <div class="section-head">
-        <h2>🔍 Pencarian</h2>
+        <h2 id="search-title">🔍 Pencarian: "${LenzUI.escapeHTML(currentQuery)}"</h2>
       </div>
       
+      <!-- Kolom Pencarian Baru (Lega di HP, Anti-Amblas) -->
       <div class="search-box-wrap" style="padding: 0 16px 20px 16px;">
         <form id="search-form" style="display: flex; gap: 8px; width: 100%;">
           <input 
@@ -36,92 +32,65 @@ async function PageSearch(props) {
         </form>
       </div>
 
-      <div id="search-results">
-        <div class="state">
-          <div class="emoji">🔍</div>
-          <h3>Mulai mencari anime</h3>
-          <p>Ketik judul anime di kolom pencarian di atas.</p>
-        </div>
-      </div>
-    </section>
-  `;
+      <!-- Grid Tempat Menampilkan Hasil Menggunakan Mesin Bawaan Lenz -->
+      <div id="search-grid">${currentQuery ? LenzUI.skeletonGrid(8) : ''}</div>
+    </section>`;
 
   const searchForm = document.getElementById("search-form");
   const searchInput = document.getElementById("search-input");
-  const resultsWrap = document.getElementById("search-results");
+  const grid = document.getElementById("search-grid");
+  const searchTitle = document.getElementById("search-title");
 
-  // Fokuskan otomatis ke kolom input biar keyboard HP langsung naik
+  // Otomatis fokus ke kolom input saat menu search dibuka di HP
   searchInput.focus();
 
-  // 2. ENGINE FETCH & RENDER DATA (LANGSUNG DARI API)
-  async function executeSearch(keyword) {
-    if (!keyword || keyword.trim() === "") return;
+  // 2. FUNGSI EKSEKUSI PENCARIAN (100% ENGINE ASLI MILIKMU)
+  async function executeSearch(q) {
+    if (!q) {
+      grid.innerHTML = `<div class="state"><div class="emoji">🔎</div><h3>Mulai mencari anime</h3><p>Ketik judul anime di kolom pencarian.</p></div>`;
+      return;
+    }
     
-    resultsWrap.innerHTML = `
-      <div class="state">
-        <div class="emoji">⏳</div>
-        <h3>Mencari "${LenzUI.escapeHTML(keyword)}"...</h3>
-      </div>`;
-      
+    // Update judul & skeleton secara realtime saat user mengetik judul baru
+    document.title = `Cari "${q}" | LENZ ANIME NONTON`;
+    searchTitle.innerHTML = `🔍 Pencarian: "${LenzUI.escapeHTML(q)}"`;
+    grid.innerHTML = LenzUI.skeletonGrid(8);
+    
     try {
-      const res = await LenzAPI.search(keyword); 
-      const list = res.data || res;
+      const data = await LenzAPI.search(q);
+      const items = LenzAPI.extractList(data, "animeList", "results", "data", "anime");
       
-      if (!Array.isArray(list) || list.length === 0) {
-        resultsWrap.innerHTML = `
-          <div class="state">
-            <div class="emoji">😥</div>
-            <h3>Anime tidak ditemukan</h3>
-            <p>Coba gunakan kata kunci atau judul lainnya.</p>
-          </div>`;
-        return;
+      if (!items.length) { 
+        grid.innerHTML = LenzUI.emptyHTML(); 
+        return; 
       }
-
-      // Tampilkan hasil pencarian ke dalam grid anime
-      resultsWrap.innerHTML = `
-        <div class="anime-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 14px; padding: 0 16px 80px 16px;">
-          ${list.map(anime => {
-            const slug = anime.slug || anime.endpoint || anime.id || "";
-            const title = anime.title || anime.name || "Untitled";
-            const img = anime.image || anime.thumb || anime.thumbnail || "";
-            const type = anime.type || anime.status || "";
-            
-            return `
-              <a href="#/anime/${encodeURIComponent(slug)}" class="anime-card" style="text-decoration: none; color: inherit; display: block;">
-                <div style="position: relative; padding-top: 140%; border-radius: 8px; overflow: hidden; background: var(--bg-2); border: 1px solid var(--border);">
-                  <img src="${img}" alt="${LenzUI.escapeHTML(title)}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;" loading="lazy" />
-                  ${type ? `<span style="position: absolute; top: 6px; left: 6px; background: rgba(0,0,0,0.75); padding: 3px 6px; font-size: 10px; border-radius: 4px; font-weight: bold; color: var(--accent);">${type}</span>` : ""}
-                </div>
-                <h4 style="margin: 8px 0 0 0; font-size: 13px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-weight: 500;">
-                  ${LenzUI.escapeHTML(title)}
-                </h4>
-              </a>
-            `;
-          }).join("")}
-        </div>
-      `;
-    } catch (err) {
-      resultsWrap.innerHTML = `
-        <div class="state">
-          <div class="emoji">💥</div>
-          <h3>Gagal memuat pencarian</h3>
-          <p>${LenzUI.escapeHTML(err.message || String(err))}</p>
-        </div>`;
+      
+      // Render data memakai engine asli aplikasimu agar gambar dan style poster muncul sempurna
+      grid.innerHTML = LenzUI.gridHTML(items);
+      LenzImg.scan(grid); 
+      LenzUI.upgradePosters(grid);
+    } catch (err) { 
+      LenzError.show(err); 
     }
   }
 
-  // Jika dari halaman lain user membawa query pencarian, langsung eksekusi
-  if (currentQuery && currentQuery.trim() !== "") {
-    await executeSearch(currentQuery.trim());
+  // Jalankan pencarian otomatis jika link membawa query dari luar (misal: klik genre/rekomendasi)
+  if (currentQuery) {
+    await executeSearch(currentQuery);
+  } else {
+    grid.innerHTML = `<div class="state"><div class="emoji">🔎</div><h3>Mulai mencari anime</h3><p>Ketik judul anime di kolom pencarian.</p></div>`;
   }
 
-  // FIX: DI-TEMBAK LANGSUNG SAAT DI-KLIK TANPA HARUS RELOAD ROUTER SPA
+  // INTERAKSI TOMBOL CARI (DITEMBAK LANGSUNG TANPA MENUNGGU SPA REFRESH)
   searchForm.onsubmit = async (e) => {
     e.preventDefault();
     const q = searchInput.value.trim();
-    if (q === "") return;
+    if (!q) return;
     
-    // Eksekusi fungsi pencarian secara direct ke DOM
+    // Tetap update link URL hash biar history tombol 'back' browser tidak rusak
+    location.hash = `#/search?q=${encodeURIComponent(q)}`;
+    
+    // Tembak pencarian langsung ke DOM agar instan keluar hasilnya
     await executeSearch(q);
   };
 }
