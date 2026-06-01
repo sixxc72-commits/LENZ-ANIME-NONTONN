@@ -1,17 +1,19 @@
 /* ========= Page: Search (Pencarian Anime) ========= */
-async function PageSearch({ queryParams }) {
-  const app = document.getElementById("app");
+async function PageSearch(props) {
+  // Ambil data params dari router bawaanmu (bisa berupa props langsung atau properti di dalamnya)
+  const params = props?.params || props || {};
   
-  // Ambil keyword query dari URL hash jika ada (contoh: #/search?q=naruto)
-  const currentQuery = queryParams?.q || "";
+  // Deteksi kata kunci dari berbagai kemungkinan rute bawaan (slug atau keyword)
+  const currentQuery = params.slug || params.keyword || params.q || "";
 
+  const app = document.getElementById("app");
   document.title = "Cari Anime | LENZ ANIME NONTON";
 
-  // 1. RENDER KOP DAN INPUT PENCARIAN YANG MOBILE-FRIENDLY
+  // 1. RENDER TAMPILAN UTAMA (TETAP MOBILE FRIENDLY, ANTI MODE DESKTOP)
   app.innerHTML = `
     <section class="section">
       <div class="section-head">
-        <h2>🔍 Pencarian ${currentQuery ? `: "${LenzUI.escapeHTML(currentQuery)}"` : ''}</h2>
+        <h2>🔍 Pencarian</h2>
       </div>
       
       <div class="search-box-wrap" style="padding: 0 16px 20px 16px;">
@@ -22,7 +24,7 @@ async function PageSearch({ queryParams }) {
             class="input-control" 
             placeholder="Ketik judul anime di sini..." 
             value="${LenzUI.escapeHTML(currentQuery)}"
-            style="flex: 1; padding: 12px 16px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-2); color: #fff; font-size: 14px; outline: none; transition: border-color 0.2s;"
+            style="flex: 1; padding: 12px 16px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-2); color: #fff; font-size: 14px; outline: none;"
           />
           <button 
             type="submit" 
@@ -48,26 +50,13 @@ async function PageSearch({ queryParams }) {
   const searchInput = document.getElementById("search-input");
   const resultsWrap = document.getElementById("search-results");
 
-  // Efek auto-focus agar keyboard HP user langsung terbuka otomatis
+  // Fokuskan otomatis ke kolom input biar keyboard HP langsung naik
   searchInput.focus();
 
-  // Jika di URL sudah membawa parameter pencarian, langsung eksekusi otomatis
-  if (currentQuery.trim() !== "") {
-    await executeSearch(currentQuery.trim());
-  }
-
-  // Handler interaksi ketika form disubmit/klik tombol cari
-  searchForm.onsubmit = (e) => {
-    e.preventDefault();
-    const q = searchInput.value.trim();
-    if (q === "") return;
-    
-    // Alihkan rute hash agar mendukung fitur back/forward browser
-    location.hash = `#/search?q=${encodeURIComponent(q)}`;
-  };
-
-  // 2. ENGINE FETCH & CRAWLER DATA SEARCH
+  // 2. ENGINE FETCH & RENDER DATA (LANGSUNG DARI API)
   async function executeSearch(keyword) {
+    if (!keyword || keyword.trim() === "") return;
+    
     resultsWrap.innerHTML = `
       <div class="state">
         <div class="emoji">⏳</div>
@@ -75,7 +64,6 @@ async function PageSearch({ queryParams }) {
       </div>`;
       
     try {
-      // Memanggil fungsi API pencarian bawaan LenzAPI kamu
       const res = await LenzAPI.search(keyword); 
       const list = res.data || res;
       
@@ -89,7 +77,7 @@ async function PageSearch({ queryParams }) {
         return;
       }
 
-      // Render grid hasil pencarian menggunakan token style bawaan tema gelap Lenz
+      // Tampilkan hasil pencarian ke dalam grid anime
       resultsWrap.innerHTML = `
         <div class="anime-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 14px; padding: 0 16px 80px 16px;">
           ${list.map(anime => {
@@ -121,4 +109,19 @@ async function PageSearch({ queryParams }) {
         </div>`;
     }
   }
+
+  // Jika dari halaman lain user membawa query pencarian, langsung eksekusi
+  if (currentQuery && currentQuery.trim() !== "") {
+    await executeSearch(currentQuery.trim());
+  }
+
+  // FIX: DI-TEMBAK LANGSUNG SAAT DI-KLIK TANPA HARUS RELOAD ROUTER SPA
+  searchForm.onsubmit = async (e) => {
+    e.preventDefault();
+    const q = searchInput.value.trim();
+    if (q === "") return;
+    
+    // Eksekusi fungsi pencarian secara direct ke DOM
+    await executeSearch(q);
+  };
 }
