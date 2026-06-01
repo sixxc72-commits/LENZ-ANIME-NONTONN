@@ -205,3 +205,19 @@ button{background:none;border:none;cursor:pointer}
 .batch-card .links{display:flex;flex-direction:column;gap:6px}
 .batch-card a{padding:8px 12px;background:var(--bg-2);border-radius:8px;font-size:12px;font-weight:600;border:1px solid var(--border);transition:.2s;display:flex;justify-content:space-between;align-items:center}
 .batch-card a:hover{border-color:var(--primary);background:rgba(108,92,231,.1)}
+
+/* ===== AI Visual Enhance (Anti-Blurik) ===== */
+.player-wrap.enhanced-mode video {
+  image-rendering: -webkit-optimize-contrast; 
+  image-rendering: crisp-edges;
+  filter: contrast(1.06) saturate(1.12) brightness(1.01);
+  transition: filter 0.3s ease;
+}
+
+/* Tampilan tombol saat fitur dinyalakan (Mengikuti gradasi warna Lenz) */
+.btn-enhance.active {
+  background: linear-gradient(135deg, var(--primary), var(--accent)) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+  box-shadow: 0 4px 14px rgba(108, 92, 231, 0.4);
+}
