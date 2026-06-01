@@ -98,7 +98,6 @@ async function PageEpisode({params}){
       rawEpisodeList = LenzAPI.extractList({data:e}, "episode_list", "episodes") || [];
     } catch(_) {}
 
-    // Jika bawaan kosong, bantu scan ulang mendalam mencari array list episode
     if (!Array.isArray(rawEpisodeList) || rawEpisodeList.length === 0) {
       function findEpArray(source) {
         for (let k in source) {
@@ -115,7 +114,6 @@ async function PageEpisode({params}){
       rawEpisodeList = findEpArray(e);
     }
 
-    // Bersihkan isi list episode secara ketat
     const validEpisodes = [];
     if (Array.isArray(rawEpisodeList)) {
       rawEpisodeList.forEach(ep => {
@@ -137,13 +135,11 @@ async function PageEpisode({params}){
           s = parts[parts.length - 1] || s;
         }
         
-        // Gali nomor dari teks slug jika properti namanya kosong
         if (!n || String(n).trim() === "") {
           const matchNum = s.match(/(?:episode|ep|ep-|-)(\d+)/i) || s.match(/(\d+)/);
           n = matchNum ? matchNum[1] : s;
         }
         
-        // Rapikan label teks tombol
         let displayLabel = String(n)
           .replace(/subtitle/gi, '')
           .replace(/indonesia/gi, '')
@@ -152,23 +148,25 @@ async function PageEpisode({params}){
           .replace(/indo/gi, '')
           .trim();
           
-        // Proteksi Akhir: Jika label kosong, paksa isi dengan angka dari slug-nya
         if (!displayLabel || displayLabel === "") {
           const fallbackNum = s.match(/(\d+)/);
           displayLabel = fallbackNum ? fallbackNum[1] : "Lihat";
         }
         
-        // Validasi: Hanya masukkan jika slug valid dan bukan merupakan object rusak string
         if (s && s !== "[object Object]" && s.trim() !== "") {
           validEpisodes.push({ slug: s, label: displayLabel });
         }
       });
     }
 
+    // Cek status penyimpanan fitur AI Enhance sebelum HTML di-render
+    const isEnhanced = localStorage.getItem("lenz_enhance") === "1";
+
     app.innerHTML = `
       <section class="section">
         <div class="section-head"><h2>${LenzUI.escapeHTML(title)}</h2></div>
-        <div class="player-wrap" id="player-wrap"></div>
+        <!-- Menyuntikkan class secara dinamis jika memori mencatat fitur ini aktif -->
+        <div class="player-wrap ${isEnhanced ? 'enhanced-mode' : ''}" id="player-wrap"></div>
 
         <div class="player-controls">
           <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -177,6 +175,8 @@ async function PageEpisode({params}){
             <label class="chip" style="cursor:pointer"><input type="checkbox" id="auto-next" style="margin-right:6px">Auto Next</label>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <!-- Tombol Baru AI Enhance diletakkan di barisan kontrol kanan -->
+            <button class="btn btn-ghost btn-enhance ${isEnhanced ? 'active' : ''}" id="btn-enhance">✨ AI Enhance</button>
             <button class="btn btn-ghost" id="btn-theater">🎭 Theater</button>
             <button class="btn btn-ghost" id="btn-pip">📺 PiP</button>
             <button class="btn btn-ghost" id="btn-fs">⛶ Fullscreen</button>
@@ -214,6 +214,14 @@ async function PageEpisode({params}){
     const nextBtn = document.getElementById("btn-next");
     if(prev) prevBtn.onclick = () => location.hash = `#/episode/${encodeURIComponent(prev)}`;
     if(next) nextBtn.onclick = () => location.hash = `#/episode/${encodeURIComponent(next)}`;
+
+    // Logika Tombol Jalur Pintas AI Enhance
+    const enhanceBtn = document.getElementById("btn-enhance");
+    enhanceBtn.onclick = () => {
+      const isActive = wrap.classList.toggle("enhanced-mode");
+      enhanceBtn.classList.toggle("active");
+      localStorage.setItem("lenz_enhance", isActive ? "1" : "0");
+    };
 
     document.getElementById("btn-theater").onclick = ()=>LenzPlayer.toggleTheater(wrap);
     document.getElementById("btn-pip").onclick = ()=>LenzPlayer.pip(wrap);
