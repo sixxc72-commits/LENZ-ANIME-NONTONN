@@ -8,14 +8,18 @@ async function PageEpisode({params}){
     const title = e.title || e.episode_title || params.slug;
     document.title = `${title} | LENZ ANIME NONTON`;
 
-    // 1. ENGINE DEEP CRAWLER (Diadopsi dari kode HTML pertama Anda)
-    // Berfungsi membongkar JSON secara rekursif mencari link video tersembunyi
+    // 1. ENGINE DEEP CRAWLER VIDEO (Dibatasi agar tidak serakah)
     function discoverStreams(obj) {
       let list = [];
       function scan(curr, key = "") {
         if (!curr) return;
         
-        // Jika menemukan string URL
+        // PROTEKSI: Jangan ambil link dari object download, batch, atau list episode lain
+        const kLower = key.toLowerCase();
+        if (kLower.includes("download") || kLower.includes("episode") || kLower.includes("batch") || kLower.includes("meta")) {
+          return;
+        }
+        
         if (typeof curr === "string") {
           if (curr.startsWith("http") || curr.startsWith("//") || curr.startsWith("<iframe")) {
             let url = curr;
@@ -24,7 +28,6 @@ async function PageEpisode({params}){
               if (match) url = match[1];
             }
             const urlLower = url.toLowerCase();
-            // Filter: Abaikan halaman web artikel biasa / localhost
             if (!urlLower.includes("/episode/") && !urlLower.includes("/anime/") && !urlLower.includes("localhost")) {
               if (!list.some(item => item.url === url)) {
                 let cleanLabel = key.replace(/_/g, ' ').replace(/embeds/gi, '').trim();
@@ -35,7 +38,6 @@ async function PageEpisode({params}){
           return;
         }
         
-        // Jika menemukan Array Data
         if (Array.isArray(curr)) {
           curr.forEach((item, idx) => {
             if (item && typeof item === "object") {
@@ -58,10 +60,9 @@ async function PageEpisode({params}){
           return;
         }
         
-        // Jika menemukan Object bersarang
         if (typeof curr === "object") {
           for (let k in curr) {
-            if (k !== "meta") scan(curr[k], k);
+            scan(curr[k], k);
           }
         }
       }
@@ -69,7 +70,6 @@ async function PageEpisode({params}){
       return list;
     }
 
-    // Eksekusi pencarian server video
     const servers = discoverStreams(e);
 
     // 2. JALANKAN ENGINE DEFAULTSTREAMING CRAWLER
@@ -85,12 +85,13 @@ async function PageEpisode({params}){
       }
     }
 
-    // 3. PENENTUAN URL UTAMA PLAYER
     let defaultUrl = servers[defaultIdx] ? servers[defaultIdx].url : "";
 
     const prev = e.previous_episode?.slug || e.prev?.slug || e.previous_slug || "";
     const next = e.next_episode?.slug || e.next?.slug || e.next_slug || "";
     const animeSlug = e.anime?.slug || e.anime_slug || "";
+    
+    // Ambil list episode lain
     const episodeList = LenzAPI.extractList({data:e},"episode_list","episodes");
 
     app.innerHTML = `
@@ -123,9 +124,28 @@ async function PageEpisode({params}){
         <div class="section-head"><h2>Episode Lain</h2></div>
         <div class="episode-list">
           ${episodeList.map(ep=>{
-            const s = ep.slug||ep.endpoint||"";
-            const n = ep.episode||ep.title||ep.number||s;
-            return `<a href="#/episode/${encodeURIComponent(s)}">Ep ${LenzUI.escapeHTML(String(n))}</a>`;
+            if (!ep) return "";
+            
+            // Ambil Slug Keamanan
+            let s = typeof ep === "object" ? (ep.slug || ep.endpoint || ep.id || ep.url || "") : String(ep);
+            if (s.includes("/")) {
+              const parts = s.split("/").filter(Boolean);
+              s = parts[parts.length - 1] || s;
+            }
+
+            // Ambil Teks Judul/Nomor
+            let n = typeof ep === "object" ? (ep.episode || ep.title || ep.number || ep.name || "") : "";
+            
+            // FALLBACK SMART: Jika API mengirim data kosong, bedah angka dari teks slug
+            if (!n || String(n).trim() === "") {
+              const matchNumber = s.match(/episode-(\d+)/i) || s.match(/-(\d+)/);
+              n = matchNumber ? matchNumber[1] : s;
+            }
+
+            // Rapikan teks (Contoh: "Episode 02" cukup ditulis "02")
+            let displayLabel = String(n).replace(/subtitle/gi, '').replace(/indonesia/gi, '').replace(/episode/gi, '').trim();
+
+            return `<a href="#/episode/${encodeURIComponent(s)}">Ep ${LenzUI.escapeHTML(displayLabel)}</a>`;
           }).join("")}
         </div>` : ""}
       </section>
@@ -151,7 +171,6 @@ async function PageEpisode({params}){
     document.getElementById("btn-pip").onclick = ()=>LenzPlayer.pip(wrap);
     document.getElementById("btn-fs").onclick = ()=>LenzPlayer.fullscreen(wrap);
 
-    // Auto next
     const autoNext = document.getElementById("auto-next");
     autoNext.checked = localStorage.getItem("lenz_autonext") === "1";
     autoNext.onchange = ()=> localStorage.setItem("lenz_autonext", autoNext.checked?"1":"0");
