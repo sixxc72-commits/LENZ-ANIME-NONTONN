@@ -8,26 +8,40 @@ async function PageEpisode({params}){
     const title = e.title || e.episode_title || params.slug;
     document.title = `${title} | LENZ ANIME NONTON`;
 
-    // Server list
-    const servers = LenzAPI.extractList({data:e},"server_list","stream_list","mirror","streams","servers");
+    // 1. Ambil list server mentah dari API
+    const rawServers = LenzAPI.extractList({data:e},"server_list","stream_list","mirror","streams","servers");
     
-    // === INTEGRASI FITUR: DEFAULTSTREAMING CRAWLER ===
+    // 2. FILTER AMAN: Buang link yang mengarah ke website utama Otakudesu/Localhost (bukan video player)
+    const servers = rawServers.filter(s => {
+      const urlStr = String(s.url || s.src || s.iframe || s.embed || "").toLowerCase();
+      return urlStr && !urlStr.includes("otakudesu") && !urlStr.includes("localhost");
+    });
+
+    // 3. JALANKAN ENGINE DEFAULTSTREAMING CRAWLER
     let defaultIdx = 0;
     if (servers.length > 0) {
-      // Mencari indeks server yang mengandung identitas 'default' atau 'desustream'
+      // Cari server yang secara spesifik bernama/beralamat 'default' atau 'desustream'
       const foundIdx = servers.findIndex(s => {
         const name = String(s.name || s.title || "").toLowerCase();
         const urlStr = String(s.url || s.src || s.iframe || s.embed || "").toLowerCase();
         return name.includes("default") || name.includes("desustream") || urlStr.includes("desustream");
       });
-      // Jika ditemukan, kunci indeks tersebut. Jika tidak, tetap gunakan indeks 0 (Server Pertama)
+      // Jika ketemu, kunci indeks server tersebut sebagai player utama
       if (foundIdx !== -1) {
         defaultIdx = foundIdx;
       }
     }
 
-    // Menentukan URL Default berdasarkan indeks server prioritas yang terpilih
-    const defaultUrl = e.stream_url || e.url || (servers[defaultIdx] && (servers[defaultIdx].url||servers[defaultIdx].src||servers[defaultIdx].iframe||servers[defaultIdx].embed)) || "";
+    // 4. PENENTUAN URL UTAMA (Prioritaskan hasil saringan list server)
+    let defaultUrl = (servers[defaultIdx] && (servers[defaultIdx].url||servers[defaultIdx].src||servers[defaultIdx].iframe||servers[defaultIdx].embed)) || "";
+    
+    // Fallback terakhir ke stream_url bawaan JIKA dan hanya JIKA bukan web wrapper
+    if (!defaultUrl) {
+      const fallback = e.stream_url || e.url || "";
+      if (!fallback.includes("otakudesu") && !fallback.includes("localhost")) {
+        defaultUrl = fallback;
+      }
+    }
 
     const prev = e.previous_episode?.slug || e.prev?.slug || e.previous_slug || "";
     const next = e.next_episode?.slug || e.next?.slug || e.next_slug || "";
