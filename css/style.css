@@ -207,7 +207,9 @@ button{background:none;border:none;cursor:pointer}
 .batch-card a:hover{border-color:var(--primary);background:rgba(108,92,231,.1)}
 
 /* ===== AI Visual Enhance (Anti-Blurik) ===== */
-.player-wrap.enhanced-mode video {
+/* Diperbarui agar mendukung tag HTML video bawaan maupun iframe hasil crawler */
+.player-wrap.enhanced-mode video,
+.player-wrap.enhanced-mode iframe {
   image-rendering: -webkit-optimize-contrast; 
   image-rendering: crisp-edges;
   filter: contrast(1.06) saturate(1.12) brightness(1.01);
