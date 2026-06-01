@@ -86,9 +86,26 @@ async function PageEpisode({params}){
 
     let defaultUrl = servers[defaultIdx] ? servers[defaultIdx].url : "";
 
-    const prev = e.previous_episode?.slug || e.prev?.slug || e.previous_slug || "";
-    const next = e.next_episode?.slug || e.next?.slug || e.next_slug || "";
-    const animeSlug = e.anime?.slug || e.anime_slug || "";
+    // ========================================================
+    // FIX: EKSTRAKTOR SLUG ANTI-ZONK (UNTUK PREV/NEXT/ANIME)
+    // ========================================================
+    function cleanSlug(item) {
+      if (!item) return "";
+      // Jika berupa object, kupas property dalamnya. Jika string, gunakan langsung.
+      let s = (typeof item === "object") ? (item.slug || item.endpoint || item.id || "") : String(item);
+      
+      // Bersihkan jika struktur data membawa path url lengkap (sisa slash)
+      if (s.includes("/")) {
+        const parts = s.split("/").filter(Boolean);
+        s = parts[parts.length - 1] || s;
+      }
+      return s && s !== "[object Object]" ? s.trim() : "";
+    }
+
+    // Mengamankan penamaan key alternatif dari API agar tombol Prev aktif sempurna
+    const prev = cleanSlug(e.previous_episode || e.prev || e.prev_episode || e.previous_slug || e.previous);
+    const next = cleanSlug(e.next_episode || e.next || e.next_episode || e.next_slug);
+    const animeSlug = cleanSlug(e.anime || e.anime_slug);
     
     // ========================================================
     // 3. ENGINE FILTRASI LIST EPISODE (ANTI-ZONK)
@@ -165,7 +182,6 @@ async function PageEpisode({params}){
     app.innerHTML = `
       <section class="section">
         <div class="section-head"><h2>${LenzUI.escapeHTML(title)}</h2></div>
-        <!-- Menyuntikkan class secara dinamis jika memori mencatat fitur ini aktif -->
         <div class="player-wrap ${isEnhanced ? 'enhanced-mode' : ''}" id="player-wrap"></div>
 
         <div class="player-controls">
@@ -175,7 +191,6 @@ async function PageEpisode({params}){
             <label class="chip" style="cursor:pointer"><input type="checkbox" id="auto-next" style="margin-right:6px">Auto Next</label>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <!-- Tombol Baru AI Enhance diletakkan di barisan kontrol kanan -->
             <button class="btn btn-ghost btn-enhance ${isEnhanced ? 'active' : ''}" id="btn-enhance">✨ AI Enhance</button>
             <button class="btn btn-ghost" id="btn-theater">🎭 Theater</button>
             <button class="btn btn-ghost" id="btn-pip">📺 PiP</button>
