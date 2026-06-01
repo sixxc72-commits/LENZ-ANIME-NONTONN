@@ -17,16 +17,21 @@ async function PageEpisode({params}){
       return urlStr && !urlStr.includes("/episode/") && !urlStr.includes("/anime/") && !urlStr.includes("localhost");
     });
 
+    // ========================================================
+    // RADAR MONITORING (Bisa kamu cek di Inspect Element -> Console)
+    console.log("=== LENZ DEBUGGER ===");
+    console.log("1. Total server mentah dari API:", rawServers);
+    console.log("2. Hasil server setelah difilter:", servers);
+    // ========================================================
+
     // 3. JALANKAN ENGINE DEFAULTSTREAMING CRAWLER
     let defaultIdx = 0;
     if (servers.length > 0) {
-      // Cari server yang menduduki kriteria 'default' atau 'desustream'
       const foundIdx = servers.findIndex(s => {
         const name = String(s.name || s.title || "").toLowerCase();
         const urlStr = String(s.url || s.src || s.iframe || s.embed || "").toLowerCase();
         return name.includes("default") || name.includes("desustream") || urlStr.includes("desustream");
       });
-      // Jika ditemukan, kunci indeks server tersebut sebagai player utama
       if (foundIdx !== -1) {
         defaultIdx = foundIdx;
       }
@@ -35,13 +40,15 @@ async function PageEpisode({params}){
     // 4. PENENTUAN URL UTAMA PLAYER
     let defaultUrl = (servers[defaultIdx] && (servers[defaultIdx].url||servers[defaultIdx].src||servers[defaultIdx].iframe||servers[defaultIdx].embed)) || "";
     
-    // Fallback cadangan jika array server kosong, ambil dari stream_url selama bukan web utama
     if (!defaultUrl) {
       const fallback = e.stream_url || "";
       if (fallback && !fallback.includes("/episode/") && !fallback.includes("/anime/")) {
         defaultUrl = fallback;
       }
     }
+
+    console.log("3. URL yang akhirnya diputar di Player:", defaultUrl);
+    console.log("=====================================");
 
     const prev = e.previous_episode?.slug || e.prev?.slug || e.previous_slug || "";
     const next = e.next_episode?.slug || e.next?.slug || e.next_slug || "";
