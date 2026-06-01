@@ -8,28 +8,76 @@ async function PageEpisode({params}){
     const title = e.title || e.episode_title || params.slug;
     document.title = `${title} | LENZ ANIME NONTON`;
 
-    // 1. Ambil list server mentah dari API
-    const rawServers = LenzAPI.extractList({data:e},"server_list","stream_list","mirror","streams","servers");
-    
-    // 2. FILTER PINTAR: Hanya buang jika URL berupa halaman web artikel biasa (/episode/ atau /anime/)
-    const servers = rawServers.filter(s => {
-      const urlStr = String(s.url || s.src || s.iframe || s.embed || "").toLowerCase();
-      return urlStr && !urlStr.includes("/episode/") && !urlStr.includes("/anime/") && !urlStr.includes("localhost");
-    });
+    // 1. ENGINE DEEP CRAWLER (Diadopsi dari kode HTML pertama Anda)
+    // Berfungsi membongkar JSON secara rekursif mencari link video tersembunyi
+    function discoverStreams(obj) {
+      let list = [];
+      function scan(curr, key = "") {
+        if (!curr) return;
+        
+        // Jika menemukan string URL
+        if (typeof curr === "string") {
+          if (curr.startsWith("http") || curr.startsWith("//") || curr.startsWith("<iframe")) {
+            let url = curr;
+            if (curr.startsWith("<iframe")) {
+              const match = curr.match(/src=["']([^"']+)["']/);
+              if (match) url = match[1];
+            }
+            const urlLower = url.toLowerCase();
+            // Filter: Abaikan halaman web artikel biasa / localhost
+            if (!urlLower.includes("/episode/") && !urlLower.includes("/anime/") && !urlLower.includes("localhost")) {
+              if (!list.some(item => item.url === url)) {
+                let cleanLabel = key.replace(/_/g, ' ').replace(/embeds/gi, '').trim();
+                list.push({ name: cleanLabel || "Server Video", url: url });
+              }
+            }
+          }
+          return;
+        }
+        
+        // Jika menemukan Array Data
+        if (Array.isArray(curr)) {
+          curr.forEach((item, idx) => {
+            if (item && typeof item === "object") {
+              let u = item.link || item.url || item.stream || item.embed || item.src;
+              let n = item.quality || item.resolution || item.server || item.label || item.name || key;
+              if (u && typeof u === "string") {
+                let urlLower = u.toLowerCase();
+                if (!urlLower.includes("/episode/") && !urlLower.includes("/anime/") && !urlLower.includes("localhost")) {
+                  if (!list.some(el => el.url === u)) {
+                    list.push({ name: String(n || "Server " + (idx + 1)), url: u });
+                  }
+                }
+              } else {
+                scan(item, key);
+              }
+            } else {
+              scan(item, key);
+            }
+          });
+          return;
+        }
+        
+        // Jika menemukan Object bersarang
+        if (typeof curr === "object") {
+          for (let k in curr) {
+            if (k !== "meta") scan(curr[k], k);
+          }
+        }
+      }
+      scan(obj);
+      return list;
+    }
 
-    // ========================================================
-    // RADAR MONITORING (Bisa kamu cek di Inspect Element -> Console)
-    console.log("=== LENZ DEBUGGER ===");
-    console.log("1. Total server mentah dari API:", rawServers);
-    console.log("2. Hasil server setelah difilter:", servers);
-    // ========================================================
+    // Eksekusi pencarian server video
+    const servers = discoverStreams(e);
 
-    // 3. JALANKAN ENGINE DEFAULTSTREAMING CRAWLER
+    // 2. JALANKAN ENGINE DEFAULTSTREAMING CRAWLER
     let defaultIdx = 0;
     if (servers.length > 0) {
       const foundIdx = servers.findIndex(s => {
-        const name = String(s.name || s.title || "").toLowerCase();
-        const urlStr = String(s.url || s.src || s.iframe || s.embed || "").toLowerCase();
+        const name = String(s.name || "").toLowerCase();
+        const urlStr = String(s.url || "").toLowerCase();
         return name.includes("default") || name.includes("desustream") || urlStr.includes("desustream");
       });
       if (foundIdx !== -1) {
@@ -37,18 +85,8 @@ async function PageEpisode({params}){
       }
     }
 
-    // 4. PENENTUAN URL UTAMA PLAYER
-    let defaultUrl = (servers[defaultIdx] && (servers[defaultIdx].url||servers[defaultIdx].src||servers[defaultIdx].iframe||servers[defaultIdx].embed)) || "";
-    
-    if (!defaultUrl) {
-      const fallback = e.stream_url || "";
-      if (fallback && !fallback.includes("/episode/") && !fallback.includes("/anime/")) {
-        defaultUrl = fallback;
-      }
-    }
-
-    console.log("3. URL yang akhirnya diputar di Player:", defaultUrl);
-    console.log("=====================================");
+    // 3. PENENTUAN URL UTAMA PLAYER
+    let defaultUrl = servers[defaultIdx] ? servers[defaultIdx].url : "";
 
     const prev = e.previous_episode?.slug || e.prev?.slug || e.previous_slug || "";
     const next = e.next_episode?.slug || e.next?.slug || e.next_slug || "";
@@ -76,7 +114,7 @@ async function PageEpisode({params}){
         ${servers.length ? `
         <div class="section-head"><h2>Pilih Server</h2></div>
         <div class="server-list">
-          ${servers.map((s,i)=>`<button class="chip ${i===defaultIdx?'active':''}" data-url="${LenzUI.escapeHTML(s.url||s.src||s.iframe||s.embed||'')}">${LenzUI.escapeHTML(s.name||s.title||('Server '+(i+1)))}</button>`).join("")}
+          ${servers.map((s,i)=>`<button class="chip ${i===defaultIdx?'active':''}" data-url="${LenzUI.escapeHTML(s.url||'')}">${LenzUI.escapeHTML(s.name || ('Server '+(i+1)))}</button>`).join("")}
         </div>` : ""}
 
         ${animeSlug ? `<div style="padding:14px 16px"><a class="btn btn-ghost" href="#/anime/${encodeURIComponent(animeSlug)}">📄 Detail Anime</a></div>` : ""}
